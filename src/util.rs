@@ -18,6 +18,8 @@ pub enum Error {
   BadCall,
   NoExec,
   IllegalOp,
+  NoFunc,
+  ExecLimit,
   EndReached,
 }
 
@@ -30,13 +32,18 @@ impl Display for Error {
       Self::WriteOob => write!(f, "Memory write out of bounds"),
       Self::ReadOob => write!(f, "Memory read out of bounds"),
       Self::IllegalOp => write!(f, "Illegal instruction reached"),
+
       Self::BadCall => {
         write!(f, "Attempted to call function which does not exist")
       },
       Self::NoExec => write!(
         f,
-        "No exec instruction found. Are you trying to execute a library?"
+        "No exe instruction found. Are you trying to execute a library?"
       ),
+      Self::NoFunc => {
+        write!(f, "Cannot begin Recital, no functions have been defined")
+      },
+      Self::ExecLimit => write!(f, "Execution limit reached, compile and run natively to do really big stuff!"),
       Self::EndReached => write!(f, "Successfully terminated"),
     }
   }

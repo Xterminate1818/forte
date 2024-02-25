@@ -18,6 +18,7 @@ pub struct Machine {
   ip: Word,
   ebp: Word,
   phase: Phase,
+  clock: usize,
   pub log: String,
   pub cstack: Vec<Word>,
   pub pstack: Vec<Word>,
@@ -32,6 +33,7 @@ impl Machine {
       ip: 0,
       ebp: 0,
       phase: Phase::Warmup,
+      clock: 0,
       log: "".to_string(),
       cstack: vec![],
       pstack: vec![],
@@ -106,6 +108,10 @@ impl Machine {
   }
 
   pub fn step(&mut self) -> CResult {
+    self.clock += 1;
+    if self.clock > 256 {
+      return Err(Error::ExecLimit)
+    }
     let word = self
       .instructions
       .get(self.ip as usize)
@@ -363,7 +369,7 @@ impl Machine {
         self.phase = Phase::Recital;
         self.ip = match self.fstack.last() {
           Some(i) => *i,
-          None => return Err(Error::StackUnderflow),
+          None => return Err(Error::NoFunc),
         }
       },
       OpKind::Push => {

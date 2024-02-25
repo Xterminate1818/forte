@@ -100,7 +100,7 @@ pub fn assemble(input: &str) -> Result<Vec<Word>, TaggedAsmError> {
   if let Some(l) = last {
     Err(TaggedAsmError {
       kind: AsmError::ExpectedNum,
-      word: l.to_string(),
+      word: "[END OF FILE]".to_string(),
     })
   } else {
     Ok(output)
