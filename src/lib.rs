@@ -5,7 +5,6 @@ mod util;
 use op::*;
 use util::*;
 
-use log::*;
 pub type Byte = u32;
 pub type Word = u128;
 
@@ -19,6 +18,7 @@ pub struct Machine {
   ip: Word,
   ebp: Word,
   phase: Phase,
+  pub log: String,
   pub cstack: Vec<Word>,
   pub pstack: Vec<Word>,
   pub fstack: Vec<Word>,
@@ -32,6 +32,7 @@ impl Machine {
       ip: 0,
       ebp: 0,
       phase: Phase::Warmup,
+      log: "".to_string(),
       cstack: vec![],
       pstack: vec![],
       fstack: vec![],
@@ -108,18 +109,15 @@ impl Machine {
     let word = self
       .instructions
       .get(self.ip as usize)
-      .expect("Ran out of instructions");
+      .ok_or(Error::NoExec)?;
     let instr: Op = match word.try_into() {
       Ok(i) => i,
-      Err(_) => {
-        error!("Invalid opcode: {:#x}", word);
-        panic!()
-      },
+      Err(_) => return Err(Error::IllegalOp),
     };
-    debug!(
-      "[{:?}]{}: {:?} {}",
-      self.phase, self.ip, instr.kind, instr.var
-    );
+    self.log.push_str(&format!(
+      "[{:?}] {}: {:?} {}\n",
+      self.phase, self.ip, instr.kind, instr.var,
+    ));
     self.ip += 1;
     match self.phase {
       Phase::Warmup => self.step_warmup(instr),
@@ -135,7 +133,10 @@ impl Machine {
             Some(n) => n,
             None => return Err(Error::StackUnderflow),
           };
-          debug!("{}: _ {}", self.ip, num);
+          self.log.push_str(&format!(
+            "[Recital] {}: {} added to stack\n",
+            self.ip, num
+          ));
           self.pstack.push(*num);
           self.ip += 1;
         }
@@ -329,9 +330,9 @@ impl Machine {
         }
       },
       OpKind::Exe => {
-        // Ignore in execution
+        // Successfully reached end of main!
         self.phase = Phase::Recital;
-        // TODO: Maybe break program here?
+        return Err(Error::EndReached);
       },
 
       OpKind::Sto => {
@@ -348,7 +349,10 @@ impl Machine {
       },
       _ => {},
     };
-    debug!("{:?}", self.pstack);
+
+    self
+      .log
+      .push_str(&format!("[STACK]:     {:?}\n", self.pstack));
     Ok(())
   }
 
@@ -362,6 +366,11 @@ impl Machine {
           None => return Err(Error::StackUnderflow),
         }
       },
+      OpKind::Push => {
+        for _ in 0..instr.var {
+          self.ip += 1;
+        }
+      },
       _ => {},
     }
     Ok(())
@@ -373,35 +382,39 @@ impl Machine {
     }
     Ok(())
   }
+
+  pub fn run(&mut self) -> String {
+    loop {
+      match self.step() {
+        Ok(_) => {},
+        Err(e) => {
+          if e == Error::EndReached {
+            self
+              .log
+              .push_str(&format!("[BRAVO] Final stack: {:?}\n", self.pstack))
+          } else {
+            self.log.push_str(&format!("[CLAM] {}\n", e))
+          }
+          return self.log.clone();
+        },
+      }
+    }
+  }
+}
+
+pub fn interpret(program: &str) -> String {
+  let mut m = Machine::new();
+  let program = match asm::assemble(program) {
+    Ok(p) => p,
+    Err(e) => return format!("{}", e),
+  };
+  m.read(program);
+  let s = m.run();
+  s
 }
 
 fn main() {
-  flexi_logger::Logger::try_with_str("rh24")
-    .unwrap()
-    .start()
-    .unwrap();
-
-  let mut m = Machine::new();
-  // let program = vec![
-  //   //
-  //   Op::new(OpKind::Fun, 0),
-  //   Op::new(OpKind::Push, 2),
-  //   15,
-  //   30,
-  //   Op::new(OpKind::Dif, 1),
-  //   Op::new(OpKind::Ret, 0),
-  //   Op::new(OpKind::Fun, 0),
-  //   Op::new(OpKind::Push, 2),
-  //   16,
-  //   4,
-  //   Op::new(OpKind::Dif, 1),
-  //   Op::new(OpKind::Call, 0),
-  //   Op::new(OpKind::Add, 1),
-  //   Op::new(OpKind::Exe, 0),
-  // ];
-  let program = include_str!("./../demo.asm");
-  let program = asm::assemble(program).unwrap();
-  m.read(program);
-  m.steps(32).unwrap();
-  println!("RESULT = {:?}", m.pstack);
+  let p = include_str!("../demo.asm");
+  let s = interpret(&p);
+  println!("{s}");
 }

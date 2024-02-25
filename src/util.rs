@@ -17,6 +17,7 @@ pub enum Error {
   ReadOob,
   BadCall,
   NoExec,
+  IllegalOp,
   EndReached,
 }
 
@@ -28,6 +29,7 @@ impl Display for Error {
       Self::StackUnbalanced => write!(f, "Stack Unbalanced"),
       Self::WriteOob => write!(f, "Memory write out of bounds"),
       Self::ReadOob => write!(f, "Memory read out of bounds"),
+      Self::IllegalOp => write!(f, "Illegal instruction reached"),
       Self::BadCall => {
         write!(f, "Attempted to call function which does not exist")
       },

@@ -1,5 +1,4 @@
 use crate::{OpKind, Word};
-use log::*;
 
 /// Assembler
 
@@ -9,8 +8,25 @@ pub enum AsmError {
   InvalidOp,
 }
 
+#[derive(Debug, Clone)]
+pub struct TaggedAsmError {
+  kind: AsmError,
+  word: String,
+}
+
+impl std::fmt::Display for TaggedAsmError {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(f, "[Assembler] Error parsing token: ")?;
+    match self.kind {
+      AsmError::ExpectedNum => {
+        write!(f, "Expected number, found {}", self.word)
+      },
+      AsmError::InvalidOp => write!(f, "Expected opcode, found {}", self.word),
+    }
+  }
+}
+
 fn parse_num(input: &str) -> Result<Word, AsmError> {
-  debug!("Parsing {} as number", input);
   if let Ok(n) = input.parse::<Word>() {
     return Ok(n);
   }
@@ -21,7 +37,6 @@ fn parse_num(input: &str) -> Result<Word, AsmError> {
 }
 
 fn parse_op(input: &str) -> Result<Word, AsmError> {
-  debug!("Parsing {} as opcode", input);
   let op = match input {
     "push" => OpKind::Push,
     "pop" => OpKind::Pop,
@@ -54,7 +69,7 @@ fn parse_op(input: &str) -> Result<Word, AsmError> {
   Ok(op as Word)
 }
 
-pub fn assemble(input: &str) -> Result<Vec<Word>, AsmError> {
+pub fn assemble(input: &str) -> Result<Vec<Word>, TaggedAsmError> {
   let mut last: Option<Word> = None;
 
   let split = input.split_whitespace();
@@ -62,7 +77,10 @@ pub fn assemble(input: &str) -> Result<Vec<Word>, AsmError> {
   for part in split {
     // If just parsed op, next should be num
     if last.is_some() {
-      let num = parse_num(part)?;
+      let num = parse_num(part).map_err(|kind| TaggedAsmError {
+        kind,
+        word: part.to_string(),
+      })?;
       let op = last.take().unwrap();
       let word = (op << 64) | num;
       output.push(word);
@@ -72,12 +90,18 @@ pub fn assemble(input: &str) -> Result<Vec<Word>, AsmError> {
       if let Ok(op) = parse_op(part) {
         last = Some(op);
       } else {
-        output.push(parse_num(part)?);
+        output.push(parse_num(part).map_err(|kind| TaggedAsmError {
+          kind,
+          word: part.to_string(),
+        })?);
       }
     }
   }
-  if last.is_some() {
-    Err(AsmError::ExpectedNum)
+  if let Some(l) = last {
+    Err(TaggedAsmError {
+      kind: AsmError::ExpectedNum,
+      word: l.to_string(),
+    })
   } else {
     Ok(output)
   }
